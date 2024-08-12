@@ -98,6 +98,7 @@ fn build_step_circuit<
     Target,
     HashOutTarget,
     HashOutTarget,
+    HashOutTarget,
 ) {
     let acc_init = GlweCt::<N, K>::new_from_builder(builder);
     let ggsw = GgswCt::<N, K, ELL>::new_from_builder(builder);
@@ -121,9 +122,9 @@ fn build_step_circuit<
     let weighted_mask_element_1 = builder.mul(weight_1, mask_element_1);
     let weighted_mask_element_2 = builder.mul(weight_2, mask_element_2);
 
-    // add the LWE sample elements 
+    // add the LWE sample elements
     let mask_element = builder.add(weighted_mask_element_1, weighted_mask_element_2);
-    
+
     // in the first step we need to negate the mask element, because it is actually the body
     let neg_mask = builder.neg(mask_element);
     let first_negated_mask = builder.select(first_step, neg_mask, mask_element);
@@ -150,17 +151,27 @@ fn build_step_circuit<
             .collect(),
     );
 
-    let current_lwe_hash_in = builder.add_virtual_hash();
-    let current_lwe_hash_out = builder.hash_n_to_hash_no_pad::<PoseidonHash>(
-        current_lwe_hash_in
+    let current_lwe_hash_in_1 = builder.add_virtual_hash();
+    let current_lwe_hash_out_1 = builder.hash_n_to_hash_no_pad::<PoseidonHash>(
+        current_lwe_hash_in_1
             .elements
             .into_iter()
-            .chain(once(mask_element))
+            .chain(once(mask_element_1))
+            .collect(),
+    );
+
+    let current_lwe_hash_in_2 = builder.add_virtual_hash();
+    let current_lwe_hash_out_2 = builder.hash_n_to_hash_no_pad::<PoseidonHash>(
+        current_lwe_hash_in_2
+            .elements
+            .into_iter()
+            .chain(once(mask_element_2))
             .collect(),
     );
 
     builder.register_public_inputs(&current_bsk_hash_out.elements);
-    builder.register_public_inputs(&current_lwe_hash_out.elements);
+    builder.register_public_inputs(&current_lwe_hash_out_1.elements);
+    builder.register_public_inputs(&current_lwe_hash_out_2.elements);
 
     (
         mask_element_1,
@@ -170,7 +181,8 @@ fn build_step_circuit<
         current_acc_in,
         counter,
         current_bsk_hash_in,
-        current_lwe_hash_in,
+        current_lwe_hash_in_1,
+        current_lwe_hash_in_2,
     )
 }
 
@@ -212,8 +224,17 @@ where
     let mut builder = CircuitBuilder::<F, D>::new(config.clone());
     let one = builder.one();
 
-    let (lwe_ct_1, lwe_ct_2, acc_init, ggsw, current_acc_in, counter, current_bsk_hash_in, current_lwe_hash_in) =
-        build_step_circuit::<F, D, LOGB, N, K, ELL, n>(&mut builder, weight_1, weight_2);
+    let (
+        lwe_ct_1,
+        lwe_ct_2,
+        acc_init,
+        ggsw,
+        current_acc_in,
+        counter,
+        current_bsk_hash_in,
+        current_lwe_hash_in_1,
+        current_lwe_hash_in_2,
+    ) = build_step_circuit::<F, D, LOGB, N, K, ELL, n>(&mut builder, weight_1, weight_2);
     let acc_init_range = (0, GlweCt::<N, K>::num_targets());
     let counter_idx = acc_init_range.1;
     let latest_acc_range = (
@@ -222,9 +243,13 @@ where
     );
 
     let hash_bsk_out_range = (latest_acc_range.1, latest_acc_range.1 + NUM_HASH_OUT_ELTS);
-    let hash_lwe_out_range = (
+    let hash_lwe_out_range_1 = (
         hash_bsk_out_range.1,
         hash_bsk_out_range.1 + NUM_HASH_OUT_ELTS,
+    );
+    let hash_lwe_out_range_2 = (
+        hash_lwe_out_range_1.1,
+        hash_lwe_out_range_1.1 + NUM_HASH_OUT_ELTS,
     );
 
     let mut common_data = common_data_for_recursion::<F, C, D>();
@@ -241,8 +266,11 @@ where
     let inner_cyclic_latest_bsk_hash =
         HashOutTarget::try_from(&inner_cyclic_pis[hash_bsk_out_range.0..hash_bsk_out_range.1])
             .unwrap();
-    let inner_cyclic_latest_lwe_hash =
-        HashOutTarget::try_from(&inner_cyclic_pis[hash_lwe_out_range.0..hash_lwe_out_range.1])
+    let inner_cyclic_latest_lwe_hash_1 =
+        HashOutTarget::try_from(&inner_cyclic_pis[hash_lwe_out_range_1.0..hash_lwe_out_range_1.1])
+            .unwrap();
+    let inner_cyclic_latest_lwe_hash_2 =
+        HashOutTarget::try_from(&inner_cyclic_pis[hash_lwe_out_range_2.0..hash_lwe_out_range_2.1])
             .unwrap();
 
     for (initial_target, inner_cyclic_initial_target) in acc_init
@@ -268,7 +296,10 @@ where
     let actual_bsk_hash_in = inner_cyclic_latest_bsk_hash
         .elements
         .map(|t| builder.select(condition, t, zero));
-    let actual_lwe_hash_in = inner_cyclic_latest_lwe_hash
+    let actual_lwe_hash_in_1 = inner_cyclic_latest_lwe_hash_1
+        .elements
+        .map(|t| builder.select(condition, t, zero));
+    let actual_lwe_hash_in_2 = inner_cyclic_latest_lwe_hash_2
         .elements
         .map(|t| builder.select(condition, t, zero));
 
@@ -276,10 +307,13 @@ where
         current_bsk_hash_in,
         HashOutTarget::try_from(actual_bsk_hash_in).unwrap(),
     );
-
     builder.connect_hashes(
-        current_lwe_hash_in,
-        HashOutTarget::try_from(actual_lwe_hash_in).unwrap(),
+        current_lwe_hash_in_1,
+        HashOutTarget::try_from(actual_lwe_hash_in_1).unwrap(),
+    );
+    builder.connect_hashes(
+        current_lwe_hash_in_2,
+        HashOutTarget::try_from(actual_lwe_hash_in_2).unwrap(),
     );
 
     let new_counter = builder.mul_add(condition.target, inner_cyclic_counter, one);
@@ -425,8 +459,6 @@ pub fn verify_pbs<
     out_ct: &Glwe<F, D, N, K>,
     ct_1: &[F],
     ct_2: &[F],
-    weight_1: &F,
-    weight_2: &F,
     testv: &Poly<F, D, N>,
     bsk: &[Ggsw<F, D, N, K, ELL>],
     ksk: &Ggsw<F, D, N, K, ELL>,
@@ -443,9 +475,13 @@ pub fn verify_pbs<
         counter_idx + 1 + GlweCt::<N, K>::num_targets(),
     );
     let hash_bsk_out_range = (latest_acc_range.1, latest_acc_range.1 + NUM_HASH_OUT_ELTS);
-    let hash_lwe_out_range = (
+    let hash_lwe_out_range_1 = (
         hash_bsk_out_range.1,
         hash_bsk_out_range.1 + NUM_HASH_OUT_ELTS,
+    );
+    let hash_lwe_out_range_2 = (
+        hash_lwe_out_range_1.1,
+        hash_lwe_out_range_1.1 + NUM_HASH_OUT_ELTS,
     );
 
     let claimed_testv = &proof.public_inputs[acc_init_range.0..acc_init_range.1];
@@ -482,29 +518,36 @@ pub fn verify_pbs<
     );
 
     // add the LWE sample elements
-    let weighted_ct_1 = lwe::multiply_constant(ct_1, weight_1);
-    let weighted_ct_2 = lwe::multiply_constant(ct_2, weight_2);
-    let ct = lwe::add(&weighted_ct_1, &weighted_ct_2);
+    // let weighted_ct_1 = lwe::multiply_constant(ct_1, weight_1);
+    // let weighted_ct_2 = lwe::multiply_constant(ct_2, weight_2);
+    // let ct = lwe::add(&weighted_ct_1, &weighted_ct_2);
 
     let hash_bsk_out =
         HashOut::try_from(&proof.public_inputs[hash_bsk_out_range.0..hash_bsk_out_range.1])
             .unwrap();
-    let hash_lwe_out =
-        HashOut::try_from(&proof.public_inputs[hash_lwe_out_range.0..hash_lwe_out_range.1])
+    let hash_lwe_out_1 =
+        HashOut::try_from(&proof.public_inputs[hash_lwe_out_range_1.0..hash_lwe_out_range_1.1])
+            .unwrap();
+    let hash_lwe_out_2 =
+        HashOut::try_from(&proof.public_inputs[hash_lwe_out_range_2.0..hash_lwe_out_range_2.1])
             .unwrap();
     let mut hash_bsk_data: Vec<Vec<F>> = Vec::new();
-    let mut hash_lwe_data: Vec<Vec<F>> = Vec::new();
+    let mut hash_lwe_data_1: Vec<Vec<F>> = Vec::new();
+    let mut hash_lwe_data_2: Vec<Vec<F>> = Vec::new();
     hash_bsk_data.push(Ggsw::<F, D, N, K, ELL>::dummy_ct().flatten());
-    hash_lwe_data.push(vec![ct[n]]);
+    hash_lwe_data_1.push(vec![ct_1[n]]);
+    hash_lwe_data_2.push(vec![ct_2[n]]);
 
-    for (ggsw, mask) in bsk.iter().zip(ct[..n].iter()) {
+    for ((ggsw, mask_1), mask_2) in bsk.iter().zip(ct_1[..n].iter()).zip(ct_2[..n].iter()) {
         hash_bsk_data.push(ggsw.flatten());
-        hash_lwe_data.push(vec![*mask]);
+        hash_lwe_data_1.push(vec![*mask_1]);
+        hash_lwe_data_2.push(vec![*mask_2]);
     }
 
     // add ksk to hash data
     hash_bsk_data.push(ksk.flatten());
-    hash_lwe_data.push(vec![F::ZERO]);
+    hash_lwe_data_1.push(vec![F::ZERO]);
+    hash_lwe_data_2.push(vec![F::ZERO]);
 
     // we don't include check of the BSK hash in the timing, because we assume that the hash
     // was precomputed
@@ -512,8 +555,15 @@ pub fn verify_pbs<
 
     let _ = timed!(
         timing,
-        "verifying Step 3",
-        verify_hash_output(&hash_lwe_data, hash_lwe_out).unwrap()
+        "verifying Step 3.1",
+        verify_hash_output(&hash_lwe_data_1, hash_lwe_out_1).unwrap()
+    );
+    timing.print();
+
+    let _ = timed!(
+        timing,
+        "verifying Step 3.2",
+        verify_hash_output(&hash_lwe_data_2, hash_lwe_out_2).unwrap()
     );
     timing.print();
 
@@ -610,11 +660,12 @@ mod tests {
         println!("ct_1: {:?}", ct_1);
         println!("ct_2: {:?}", ct_2);
         let (out_ct, proof, cd) = verified_pbs::<F, C, D, n, N, K, ELL, LOGB>(
-            &ct_1, &ct_2, &w_1, 
-            &w_2, &testv, &bsk, &ksk, &s_glwe, &s_lwe, &s_to,
+            &ct_1, &ct_2, &w_1, &w_2, &testv, &bsk, &ksk, &s_glwe, &s_lwe, &s_to,
         );
 
-        verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct_1, &ct_2, &w_1, &w_2, &testv, &bsk, &ksk, &proof, &cd);
+        verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(
+            &out_ct, &ct_1, &ct_2, &testv, &bsk, &ksk, &proof, &cd,
+        );
         let m_out = out_ct.decrypt(&s_to);
         println!("output ct: {:?}", out_ct);
         println!("output poly: {:?}", m_out);

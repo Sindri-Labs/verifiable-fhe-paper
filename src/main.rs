@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     let s_glwe = Glwe::<F, D, N, K>::key_gen();
     let bsk = compute_bsk::<F, D, N, K, ELL, LOGB>(&s_lwe, &s_glwe, sigma_glwe);
     let ksk = Ggsw::<F, D, N, K, ELL>::compute_ksk::<LOGB>(&s_to, &s_glwe, sigma_lwe);
-    
+
     let delta = get_delta::<F, D>(2 * p);
     let testv = get_testv(p, delta);
     let m_1 = F::from_canonical_usize(random::<usize>() % p);
@@ -55,11 +55,15 @@ fn main() -> Result<()> {
     let ct_2 = encrypt::<F, D, n>(&s_lwe, &(delta * m_2), sigma_lwe);
 
     // prove a PBS
-    let (out_ct, proof, cd) =
-        verified_pbs::<F, C, D, n, N, K, ELL, LOGB>(&ct_1, &ct_2, &w_1, &w_2, &testv, &bsk, &ksk, &s_glwe, &s_lwe, &s_to);
+    let (out_ct, proof, cd) = verified_pbs::<F, C, D, n, N, K, ELL, LOGB>(
+        &ct_1, &ct_2, &w_1, &w_2, &testv, &bsk, &ksk, &s_glwe, &s_lwe, &s_to,
+    );
 
     // verify the PBS
-    verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct_1, &ct_2, &w_1, &w_2, &testv, &bsk, &ksk, &proof, &cd);
+    // the weights are included in `cd` as circuit constants.
+    verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(
+        &out_ct, &ct_1, &ct_2, &testv, &bsk, &ksk, &proof, &cd,
+    );
     let m_bar = out_ct.decrypt(&s_to).coeffs;
 
     let m_out = F::from_canonical_usize(
