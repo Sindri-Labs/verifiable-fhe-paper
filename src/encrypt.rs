@@ -60,6 +60,7 @@ fn main() -> Result<()> {
     });
     let json_secret_values_str = serde_json::to_string(&json_secret_values)?;
     fs::write("secrets.json", json_secret_values_str)?;
+    info!("secret values written to secrets.json");
 
     // Turn the proof inputs into serializable JSON objects
     let ct_u64 = ct.iter().map(|x| x.to_canonical_u64()).collect::<Vec<u64>>();

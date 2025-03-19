@@ -12,6 +12,10 @@ name = "vfhe_prove_local"
 path = "src/prove_local.rs"
 
 [[bin]]
+name = "vfhe_prove_sindri"
+path = "src/prove_sindri.rs"
+
+[[bin]]
 name = "vfhe_verify"
 path = "src/verify.rs"
 
@@ -30,3 +34,5 @@ hashbrown = "0.14.2"
 rand_distr = "0.4.3"
 itertools = "0.12.1"
 serde_json = "1.0"
+serde = { version = "1.0.204", features = ["derive"] }
+base64 = "0.22.1"

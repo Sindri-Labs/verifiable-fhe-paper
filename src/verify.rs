@@ -11,15 +11,29 @@ use crate::vtfhe::crypto::lwe::{get_delta};
 use crate::vtfhe::ivc_based_vpbs::{verify_pbs};
 
 use std::fs;
+use std::fs::File;
+use std::io::Read;
+use serde_json::Value;
 use crate::vtfhe::crypto::poly::Poly;
 use crate::vtfhe::crypto::glev::Glev;
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2::plonk::circuit_data::VerifierCircuitData;
+use plonky2::plonk::circuit_data::VerifierOnlyCircuitData;
 use plonky2::util::serialization::DefaultGateSerializer;
+use plonky2::plonk::circuit_data::CommonCircuitData;
+use base64::{engine::general_purpose, Engine as _};
+use serde::Deserialize;
 
 mod ntt;
 mod vec_arithmetic;
 mod vtfhe;
+
+#[derive(Deserialize, Debug)]
+pub struct JsonProofData {
+    pub proof: String,
+    pub common: String,
+    pub verifier_data: String,
+}
 
 fn main() -> Result<()> {
     // optimized parameters, use N=1024 (see ntt/mod.rs)
@@ -40,6 +54,9 @@ fn main() -> Result<()> {
     simple_logging::log_to_stderr(LevelFilter::Debug);
 
     // Read in the bootstrap inputs from the JSON file
+    if !fs::metadata("bootstrap_inputs.json").is_ok() {
+        panic!("bootstrap_inputs.json file not found");
+    }
     let input_data_str = fs::read_to_string("bootstrap_inputs.json")?;
     let input_data: serde_json::Value = serde_json::from_str(&input_data_str)?;
 
@@ -100,6 +117,9 @@ fn main() -> Result<()> {
     let testv: Poly<F, D, N> = Poly { coeffs: testv_coeffs.iter().map(|x| F::from_canonical_u64(*x)).collect::<Vec<F>>().try_into().unwrap() };
 
     // Read in the bootstrap outputs from the JSON file
+    if !fs::metadata("bootstrap_outputs.json").is_ok() {
+        panic!("bootstrap_outputs.json file not found");
+    }
     let output_data_str = fs::read_to_string("bootstrap_outputs.json")?;
     let output_data: serde_json::Value = serde_json::from_str(&output_data_str)?;
 
@@ -131,12 +151,48 @@ fn main() -> Result<()> {
         &DefaultGateSerializer,
     ).unwrap();
 
-    // Read in the proof from the JSON file
-    let proof_str = fs::read_to_string("bootstrap_proof.json")?;
-    let proof: ProofWithPublicInputs<F, C, D> = serde_json::from_str(&proof_str)?;
+    // If there is a bootstrap_proof.json file, then we will verify the proof
+    if fs::metadata("bootstrap_proof.json").is_ok() {
+        info!("Starting verification of [bootstrap_proof.json]");
+        // Read in the proof from the JSON file
+        let proof_str = fs::read_to_string("bootstrap_proof.json")?;
+        let proof: ProofWithPublicInputs<F, C, D> = serde_json::from_str(&proof_str)?;
 
-    // verify the PBS
-    verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &vcd);
-    info!("verification successful!");
+        // verify the PBS
+        verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &vcd);
+        info!("verification successful!");
+    }
+
+    // If there is a sindri_proof.json file, then we will verify the proof
+    if fs::metadata("sindri_proof.json").is_ok() {
+        info!("Verifying proof from file: [sindri_proof.json]");
+        let mut file = File::open("sindri_proof.json").unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+        let proof_details: Value = serde_json::from_str(&contents).unwrap();
+    
+        let proof_data: JsonProofData = serde_json::from_value(proof_details["proof"].clone()).unwrap();
+    
+        let proof_bytes = general_purpose::STANDARD.decode(proof_data.proof).unwrap();
+        let common_bytes = general_purpose::STANDARD.decode(proof_data.common).unwrap();
+        let verifier_only_bytes = general_purpose::STANDARD
+            .decode(proof_data.verifier_data)
+            .unwrap();
+    
+        let default_gate_serializer = DefaultGateSerializer;
+    
+        let common =
+            CommonCircuitData::<F, D>::from_bytes(common_bytes, &default_gate_serializer).unwrap();
+        let proof = ProofWithPublicInputs::<F, C, D>::from_bytes(proof_bytes, &common).unwrap();
+        let verifier_data = VerifierOnlyCircuitData::<C, D>::from_bytes(verifier_only_bytes).unwrap();
+    
+        let verifier: VerifierCircuitData<F, C, D> = VerifierCircuitData {
+            verifier_only: verifier_data,
+            common: common,
+        };
+
+        // verify the PBS
+        verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &verifier);
+    }
     Ok(())
 }
