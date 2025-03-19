@@ -52,10 +52,10 @@ fn main() -> Result<()> {
 
     // prove a PBS
     let (out_ct, proof, cd) =
-        verified_pbs::<F, C, D, n, N, K, ELL, LOGB>(&ct, &testv, &bsk, &ksk, &s_glwe, &s_lwe, &s_to);
+        verified_pbs::<F, C, D, n, N, K, ELL, LOGB>(&ct, &testv, &bsk, &ksk, Some(&s_glwe), Some(&s_lwe), Some(&s_to));
 
     // verify the PBS
-    verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &cd);
+    verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &cd.verifier_data());
     let m_bar = out_ct.decrypt(&s_to).coeffs;
 
     let m_out = F::from_canonical_usize(

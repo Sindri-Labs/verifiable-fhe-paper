@@ -10,7 +10,7 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::target::Target;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
-use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData};
+use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData, CommonCircuitData, VerifierCircuitData};
 use plonky2::plonk::config::{AlgebraicHasher, GenericConfig, Hasher};
 use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2::plonk::prover::prove;
@@ -170,9 +170,9 @@ pub fn verified_pbs<
     testv: &Poly<F, D, N>,
     bsk: &[Ggsw<F, D, N, K, ELL>],
     ksk: &Ggsw<F, D, N, K, ELL>,
-    debug_glwe_key: &[Poly<F, D, N>],
-    debug_lwe_key: &[F],
-    debug_ksk_key: &[Poly<F, D, N>],
+    debug_glwe_key_maybe: Option<&[Poly<F, D, N>]>,
+    debug_lwe_key_maybe: Option<&[F]>,
+    debug_ksk_key_maybe: Option<&[Poly<F, D, N>]>,
 ) -> (
     Glwe<F, D, N, K>,
     ProofWithPublicInputs<F, C, D>,
@@ -311,14 +311,19 @@ where
     let mut current_acc: Glwe<F, D, N, K> =
         Glwe::from_slice(&proof.public_inputs[latest_acc_range.0..latest_acc_range.1]);
 
-    info!(
-        "Avg error: {}",
-        current_acc.get_avg_error(&debug_glwe_key, &testv_check)
-    );
-    info!(
-        "Max error: {}",
-        current_acc.get_max_error(&debug_glwe_key, &testv_check)
-    );
+    match debug_glwe_key_maybe {
+        Some(debug_glwe_key) => {
+            info!(
+                "Avg error: {}",
+                current_acc.get_avg_error(&debug_glwe_key, &testv_check)
+            );
+            info!(
+                "Max error: {}",
+                current_acc.get_max_error(&debug_glwe_key, &testv_check)
+            );
+        }
+        None => {}
+    }
 
     for x in 0..n {
         println!("loop {x}");
@@ -338,18 +343,29 @@ where
         )
         .unwrap();
         timing.print();
-        testv_check = testv_check
-            .right_shift(ct_switched[x] * (debug_lwe_key[x].to_canonical_u64() as usize));
         current_acc =
             Glwe::from_slice(&proof.public_inputs[latest_acc_range.0..latest_acc_range.1]);
-        info!(
-            "Avg error: {}",
-            current_acc.get_avg_error(&debug_glwe_key, &testv_check)
-        );
-        info!(
-            "Max error: {}",
-            current_acc.get_max_error(&debug_glwe_key, &testv_check)
-        );
+        match debug_lwe_key_maybe {
+            Some(debug_lwe_key) => {
+                testv_check = testv_check
+                    .right_shift(ct_switched[x] * (debug_lwe_key[x].to_canonical_u64() as usize));
+
+                match debug_glwe_key_maybe {
+                    Some(debug_glwe_key) => {
+                        info!(
+                            "Avg error: {}",
+                            current_acc.get_avg_error(&debug_glwe_key, &testv_check)
+                        );
+                        info!(
+                            "Max error: {}",
+                            current_acc.get_max_error(&debug_glwe_key, &testv_check)
+                        );
+                    }
+                    None => {}
+                }
+            }
+            None => {}
+        }
     }
 
     // key switch
@@ -371,14 +387,26 @@ where
     timing.print();
 
     current_acc = Glwe::from_slice(&proof.public_inputs[latest_acc_range.0..latest_acc_range.1]);
-    info!(
-        "Avg error: {}",
-        current_acc.get_avg_error(&debug_ksk_key, &testv_check)
-    );
-    info!(
-        "Max error: {}",
-        current_acc.get_max_error(&debug_glwe_key, &testv_check)
-    );
+
+    match debug_ksk_key_maybe {
+        Some(debug_ksk_key) => {
+            info!(
+                "Avg error: {}",
+                current_acc.get_avg_error(&debug_ksk_key, &testv_check)
+            );
+        }
+        None => {}
+    }
+
+    match debug_glwe_key_maybe {
+        Some(debug_glwe_key) => {
+            info!(
+                "Max error: {}",
+                current_acc.get_max_error(&debug_glwe_key, &testv_check)
+            );
+        }
+        None => {}
+    }
 
     let acc_out_slice = &proof.public_inputs[latest_acc_range.0..latest_acc_range.1];
     let acc_out = Glwe::<F, D, N, K>::from_slice(&acc_out_slice);
@@ -401,7 +429,7 @@ pub fn verify_pbs<
     bsk: &[Ggsw<F, D, N, K, ELL>],
     ksk: &Ggsw<F, D, N, K, ELL>,
     proof: &ProofWithPublicInputs<F, C, D>,
-    cd: &CircuitData<F, C, D>,
+    cd: &VerifierCircuitData<F, C, D>,
 ) where
     <C as GenericConfig<D>>::Hasher: AlgebraicHasher<F>,
     C: 'static,
