@@ -21,9 +21,7 @@ fn main() -> Result<()> {
     // dcecomposition parameters
     const K: usize = 2; // GLWE dimension (K = k + 1)
     const p: usize = 2; // plaintext modulus
-    let sigma_glwe = 4.99027217501041e-8; // GLWE noise
-    let sigma_lwe = 0.0000117021618159313; // LWE noise
-
+    
     // plonky2 parameters
     const D: usize = 2;
     type C = PoseidonGoldilocksConfig;

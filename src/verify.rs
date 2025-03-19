@@ -7,7 +7,6 @@ use ntt::params::N;
 
 use crate::vtfhe::crypto::ggsw::Ggsw;
 use crate::vtfhe::crypto::glwe::Glwe;
-use crate::vtfhe::crypto::lwe::{get_delta};
 use crate::vtfhe::ivc_based_vpbs::{verify_pbs};
 
 use std::fs;
@@ -169,9 +168,14 @@ fn main() -> Result<()> {
         let mut file = File::open("sindri_proof.json").unwrap();
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
-        let proof_details: Value = serde_json::from_str(&contents).unwrap();
+        let proof_details : Value = serde_json::from_str(&contents).unwrap();
+        let proof_object = proof_details.as_object().expect("sindri_proof.json should contain valid proof data");
     
-        let proof_data: JsonProofData = serde_json::from_value(proof_details["proof"].clone()).unwrap();
+        let proof_data: JsonProofData = if proof_object.contains_key("proof") {
+            serde_json::from_value(proof_details["proof"].clone()).unwrap()
+        } else {
+            serde_json::from_value(proof_details.clone()).unwrap()
+        };
     
         let proof_bytes = general_purpose::STANDARD.decode(proof_data.proof).unwrap();
         let common_bytes = general_purpose::STANDARD.decode(proof_data.common).unwrap();
@@ -193,6 +197,7 @@ fn main() -> Result<()> {
 
         // verify the PBS
         verify_pbs::<F, C, D, n, N, K, ELL, LOGB>(&out_ct, &ct, &testv, &bsk, &ksk, &proof, &verifier);
+        info!("verification successful!");
     }
     Ok(())
 }

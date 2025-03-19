@@ -1,0 +1,16 @@
+[00:00:00.877] (7f8df5565780) INFO   Starting verification of [bootstrap_proof.json]
+[00:00:03.108] (7f8df5565780) INFO   2.2295s to verify
+[00:00:03.108] (7f8df5565780) DEBUG  | 0.0069s to verifying Step 1
+[00:00:03.108] (7f8df5565780) DEBUG  | 0.0000s to verifying Step 2
+[00:00:03.108] (7f8df5565780) DEBUG  | 0.0011s to verifying Step 3
+[00:00:03.108] (7f8df5565780) INFO   number of steps: 730
+[00:00:03.109] (7f8df5565780) INFO   proof size: 192476 bytes
+[00:00:03.115] (7f8df5565780) INFO   verification successful!
+[00:00:03.115] (7f8df5565780) INFO   Verifying proof from file: [sindri_proof.json]
+[00:00:05.340] (7f8df5565780) INFO   2.2247s to verify
+[00:00:05.340] (7f8df5565780) DEBUG  | 0.0068s to verifying Step 1
+[00:00:05.340] (7f8df5565780) DEBUG  | 0.0000s to verifying Step 2
+[00:00:05.340] (7f8df5565780) DEBUG  | 0.0011s to verifying Step 3
+[00:00:05.340] (7f8df5565780) INFO   number of steps: 730
+[00:00:05.340] (7f8df5565780) INFO   proof size: 192476 bytes
+[00:00:05.347] (7f8df5565780) INFO   verification successful!

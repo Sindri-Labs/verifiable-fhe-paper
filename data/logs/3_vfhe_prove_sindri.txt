@@ -1,0 +1,1 @@
+[00:00:01.298] (76d59adb1780) INFO   Bootstrap inputs and ouput written to sindri_input.json

@@ -1,0 +1,8 @@
+{
+  "name": "verifiable_fhe",
+  "circuitType": "plonky2",
+  "structName": "vfhe_plonky2::BootstrapCircuit",
+  "plonky2Version": "0.2.2",
+  "provingScheme": "plonky2",
+  "packageName": "vfhe_plonky2"
+}

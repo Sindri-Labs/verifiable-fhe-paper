@@ -19,12 +19,9 @@ mod ntt;
 mod vec_arithmetic;
 mod vtfhe;
 
-const LOGB: usize = 5;
 const ELL: usize = 4;
 
 const K: usize = 2; // GLWE dimension (K = k + 1)
-const n: usize = 728; // LWE dimension
-const p: usize = 2; // plaintext modulus
 
 // plonky2 parameters
 pub const D: usize = 2;
