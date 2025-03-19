@@ -1,4 +1,4 @@
-# Remote Execution with Verification, At Last
+# Confidential Remote Execution with Verification, At Last?
 
 > Note: This is a complex circuit taking approx 45 minutes to prove.
 
