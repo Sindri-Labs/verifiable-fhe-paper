@@ -42,7 +42,7 @@ The second stage is outsourcing the proof generation to a different entity. This
 
 The final stage of decoupling - not yet completed - is to claw back the basic computation, so that the holder of the key and plaintext performs just the bootstrapping computation locally, and doesn't need to be involved in proof construction. At this point we can use `vfhe_bootstrap`. It should also only pass the bare minimum of information to the proving service.
 
-Once fully decoupled, we hope to investigate the programmable aspect of TFHE's bootstrapping operation, in which the final step can incorporate function evaluation - so instead of getting a low-noise copy of the original ciphertext, you get a low-noise ciphertext that decrypts to `function(plaintext)`. This is the perfect building block for arbitrary verifiable remote execution.
+Once fully decoupled, we hope to investigate the programmable aspect of TFHE's bootstrapping operation, in which the final step can incorporate function evaluation - so instead of getting a low-noise copy of the original ciphertext, you get a low-noise ciphertext that decrypts to `function(plaintext)`. This is the perfect building block for arbitrary remote execution that is confidential but verifiable.
 
 ## Data Replication
 
@@ -76,4 +76,4 @@ vfhe_decrypt      > logs/6_vfhe_decrypt.txt      2>&1
 This implementation is purely for academic purposes and not meant for production.
 
 ## License
-This software is distributed under the **BSD-3-Clause-Clear** license, and is heavily derived from Zama-AI's upstream [repostiory](https://github.com/zama-ai/verifiable-fhe-paper).
+This software is distributed under the **BSD-3-Clause-Clear** license, and is heavily derived from Zama-AI's upstream [repository](https://github.com/zama-ai/verifiable-fhe-paper).
